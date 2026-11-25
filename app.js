@@ -363,6 +363,7 @@ function istGesehen(videoId) {
 }
 
 function alsGesehenMarkieren(videoId) {
+  gesehenAbgleichen(); // läuft im Hintergrund, falls mit Google verbunden
   const gesehen = gesehenLaden();
   gesehen[videoId] = Date.now();
   localStorage.setItem("gesehen", JSON.stringify(gesehen));
@@ -715,7 +716,7 @@ function googleAntwort(antwort) {
     antwort.expires_in,
     "Sekunden.",
   );
-  // In Schritt 11d starten wir hier den Abgleich
+  start(); // gleicht "gesehen" mit Drive ab und baut die Liste neu auf
 }
 
 // Wird aufgerufen, wenn das Anmeldefenster nicht aufgeht oder geschlossen wird
@@ -730,6 +731,135 @@ function googleFensterProblem(problem) {
 document
   .getElementById("google-knopf")
   .addEventListener("click", mitGoogleVerbinden);
+
+// ===== 10b. GOOGLE DRIVE (versteckter App-Ordner) =====
+
+let driveDateiId = null; // die ID unserer Datei "gesehen.json" in Drive
+
+// Schickt eine Anfrage an Google Drive, mit unserem Zugangs-Token
+async function driveAnfrage(adresse, methode, inhalt) {
+  const antwort = await fetch(adresse, {
+    method: methode,
+    headers: {
+      Authorization: "Bearer " + googleZugang,
+      "Content-Type": "application/json",
+    },
+    body: inhalt,
+  });
+
+  if (antwort.status === 401) {
+    googleVerbindungVerloren();
+    throw new Error("Google-Zugang ist abgelaufen");
+  }
+  if (!antwort.ok) {
+    throw new Error(
+      "Drive-Fehler " + antwort.status + ": " + (await antwort.text()),
+    );
+  }
+  return antwort;
+}
+
+// Sucht die Datei "gesehen.json" im App-Ordner. Gibt es sie nicht, wird sie angelegt.
+async function driveDateiFinden() {
+  if (driveDateiId !== null) {
+    return driveDateiId;
+  }
+
+  const suche =
+    "https://www.googleapis.com/drive/v3/files" +
+    "?spaces=appDataFolder" +
+    "&q=" +
+    encodeURIComponent("name = 'gesehen.json'") +
+    "&fields=files(id)";
+  const antwort = await driveAnfrage(suche, "GET");
+  const daten = await antwort.json();
+
+  if (daten.files.length > 0) {
+    driveDateiId = daten.files[0].id;
+  } else {
+    const neueDatei = JSON.stringify({
+      name: "gesehen.json",
+      parents: ["appDataFolder"],
+      mimeType: "application/json",
+    });
+    const neu = await driveAnfrage(
+      "https://www.googleapis.com/drive/v3/files?fields=id",
+      "POST",
+      neueDatei,
+    );
+    const neuDaten = await neu.json();
+    driveDateiId = neuDaten.id;
+  }
+
+  return driveDateiId;
+}
+
+// Liest die "gesehen"-Liste aus Drive
+async function driveLesen() {
+  const id = await driveDateiFinden();
+  const adresse =
+    "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media";
+  const antwort = await driveAnfrage(adresse, "GET");
+  const text = await antwort.text();
+
+  if (!text) {
+    return {}; // neue, noch leere Datei
+  }
+  return JSON.parse(text);
+}
+
+// Schreibt die "gesehen"-Liste nach Drive
+async function driveSchreiben(gesehen) {
+  const id = await driveDateiFinden();
+  const adresse =
+    "https://www.googleapis.com/upload/drive/v3/files/" +
+    id +
+    "?uploadType=media";
+  await driveAnfrage(adresse, "PATCH", JSON.stringify(gesehen));
+}
+
+// Führt lokale Liste und Drive-Liste zusammen und speichert das Ergebnis an beiden Orten
+async function gesehenAbgleichen() {
+  if (googleZugang === null) {
+    return; // nicht verbunden -> nichts zu tun
+  }
+
+  try {
+    const ausDrive = await driveLesen();
+    const lokal = gesehenLaden();
+
+    // Alles aus Drive übernehmen, was lokal fehlt (bei doppelten: der neuere Zeitpunkt)
+    for (const videoId in ausDrive) {
+      if (lokal[videoId] === undefined || ausDrive[videoId] > lokal[videoId]) {
+        lokal[videoId] = ausDrive[videoId];
+      }
+    }
+
+    localStorage.setItem("gesehen", JSON.stringify(lokal));
+    alteEintraegeAufraeumen();
+    await driveSchreiben(gesehenLaden());
+
+    console.log(
+      "Abgleich mit Drive fertig:",
+      Object.keys(gesehenLaden()).length,
+      "Einträge",
+    );
+  } catch (problem) {
+    console.error("Abgleich fehlgeschlagen:", problem);
+    document.getElementById("fehler").textContent =
+      "Abgleich mit Google Drive fehlgeschlagen.";
+  }
+}
+
+// Wird aufgerufen, wenn der Google-Zugang abgelaufen ist (nach ca. 1 Stunde)
+function googleVerbindungVerloren() {
+  googleZugang = null;
+  const knopf = document.getElementById("google-knopf");
+  knopf.textContent = "☁ Mit Google verbinden";
+  knopf.classList.remove("verbunden");
+  document.getElementById("fehler").textContent =
+    "Die Google-Verbindung ist abgelaufen. Bitte neu verbinden.";
+}
 
 // ===== 11. HAUPTABLAUF =====
 
@@ -760,6 +890,7 @@ async function start(neuLaden) {
 
   try {
     alteEintraegeAufraeumen();
+    await gesehenAbgleichen();
 
     const alleVideos = await alleVideosHolen(neuLaden);
 
