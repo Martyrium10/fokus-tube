@@ -288,3 +288,37 @@ main {
   border-color: #2e7d32;
   color: #81c784;
 }
+/* ===== Kopfzeile mit Logo in der Mitte ===== */
+/* Drei Spalten: links Text, Mitte Logo, rechts Knöpfe */
+.kopfzeile {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+.logo {
+  width: 56px;
+  height: 56px;
+}
+
+.kopf-knoepfe {
+  justify-content: flex-end;
+}
+
+/* Auf dem Handy: alles untereinander, Logo oben in der Mitte */
+@media (max-width: 600px) {
+  .kopfzeile {
+    grid-template-columns: 1fr;
+  }
+
+  .logo {
+    grid-row: 1;
+    justify-self: center;
+    width: 44px;
+    height: 44px;
+  }
+
+  .kopf-knoepfe {
+    justify-content: flex-start;
+  }
+}
