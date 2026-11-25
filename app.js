@@ -213,7 +213,133 @@ async function kanalVerarbeiten(eintrag) {
 
   return videos;
 }
-// ===== 4. HAUPTABLAUF =====
+// ===== 4. VIDEO-DETAILS HOLEN =====
+
+// Fragt bei YouTube Länge, Live-Status, Vorschaubild und Einbett-Erlaubnis ab.
+// Bis zu 50 Videos passen in eine Anfrage (kostet 1 Einheit).
+async function videoDetailsHolen(videos) {
+  for (let i = 0; i < videos.length; i = i + 50) {
+    const gruppe = videos.slice(i, i + 50);
+    const ids = gruppe.map((video) => video.id).join(",");
+
+    const adresse =
+      "https://www.googleapis.com/youtube/v3/videos" +
+      "?part=contentDetails,status,snippet" +
+      "&id=" +
+      ids +
+      "&key=" +
+      API_SCHLUESSEL;
+
+    const antwort = await fetch(adresse);
+    const daten = await antwort.json();
+
+    if (!antwort.ok) {
+      console.error("Fehler bei den Video-Details:", daten.error.message);
+      continue;
+    }
+
+    for (const details of daten.items) {
+      const video = gruppe.find((v) => v.id === details.id);
+      video.sekunden = dauerInSekunden(details.contentDetails.duration);
+      video.einbettbar = details.status.embeddable;
+      video.live = details.snippet.liveBroadcastContent; // "none", "live" oder "upcoming"
+      video.bild = details.snippet.thumbnails.medium.url;
+    }
+  }
+}
+
+// Wandelt die YouTube-Dauer (z. B. "PT1H2M30S") in Sekunden um
+function dauerInSekunden(text) {
+  const teile = text.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!teile) {
+    return 0;
+  }
+  const stunden = Number(teile[1] || 0);
+  const minuten = Number(teile[2] || 0);
+  const sekunden = Number(teile[3] || 0);
+  return stunden * 3600 + minuten * 60 + sekunden;
+}
+
+// Macht aus Sekunden einen lesbaren Text, z. B. 754 -> "12:34"
+function dauerAlsText(sekunden) {
+  if (sekunden === undefined) {
+    return "?";
+  }
+  const h = Math.floor(sekunden / 3600);
+  const m = Math.floor((sekunden % 3600) / 60);
+  const s = String(sekunden % 60).padStart(2, "0");
+
+  if (h > 0) {
+    return h + ":" + String(m).padStart(2, "0") + ":" + s;
+  }
+  return m + ":" + s;
+}
+
+// ===== 5. FILTER =====
+
+// Entscheidet für ein Video: anzeigen (true) oder aussortieren (false)
+function videoPasst(video) {
+  // Keine Details bekommen (z. B. gelöscht oder privat) -> weg
+  if (video.sekunden === undefined) {
+    return false;
+  }
+
+  // Darf nicht eingebettet werden, oder ist (noch) live -> weg
+  if (!video.einbettbar || video.live !== "none") {
+    return false;
+  }
+
+  const filter = video.kanalEintrag;
+  const titel = video.titel.toLowerCase();
+
+  // mussEnthalten: ALLE Wörter müssen im Titel stehen
+  if (filter.mussEnthalten) {
+    for (const wort of filter.mussEnthalten) {
+      if (!titel.includes(wort.toLowerCase())) {
+        return false;
+      }
+    }
+  }
+
+  // einsDavon: MINDESTENS EIN Wort muss im Titel stehen
+  if (filter.einsDavon) {
+    const treffer = filter.einsDavon.some((wort) =>
+      titel.includes(wort.toLowerCase()),
+    );
+    if (!treffer) {
+      return false;
+    }
+  }
+
+  // darfNichtEnthalten: KEINES dieser Wörter darf im Titel stehen
+  if (filter.darfNichtEnthalten) {
+    const treffer = filter.darfNichtEnthalten.some((wort) =>
+      titel.includes(wort.toLowerCase()),
+    );
+    if (treffer) {
+      return false;
+    }
+  }
+
+  // mindestMinuten: Video muss mindestens so lang sein
+  if (filter.mindestMinuten && video.sekunden < filter.mindestMinuten * 60) {
+    return false;
+  }
+
+  return true;
+}
+
+// ===== 6. HAUPTABLAUF =====
+
+// Macht aus einem Video eine kurze Zeile für die Tabelle in der Konsole
+function tabellenZeile(video) {
+  return {
+    kanal: video.kanal,
+    titel: video.titel,
+    dauer: dauerAlsText(video.sekunden),
+    einbettbar: video.einbettbar,
+  };
+}
 
 async function start() {
   const status = document.getElementById("status");
@@ -222,20 +348,20 @@ async function start() {
   const videosProKanal = await Promise.all(KANAELE.map(kanalVerarbeiten));
   const alleVideos = videosProKanal.flat();
 
+  await videoDetailsHolen(alleVideos);
+
+  const passende = alleVideos.filter(videoPasst);
+  const aussortiert = alleVideos.filter((video) => !videoPasst(video));
+
   // Neueste zuerst
-  alleVideos.sort((a, b) => b.datum - a.datum);
+  passende.sort((a, b) => b.datum - a.datum);
 
-  console.log("Gefundene Videos:", alleVideos.length);
-  console.table(
-    alleVideos.map((video) => ({
-      kanal: video.kanal,
-      titel: video.titel,
-      datum: video.datum.toLocaleString("de-DE"),
-    })),
-  );
+  console.log("ANGEZEIGT:", passende.length);
+  console.table(passende.map(tabellenZeile));
+  console.log("AUSSORTIERT:", aussortiert.length);
+  console.table(aussortiert.map(tabellenZeile));
 
-  status.textContent =
-    alleVideos.length + " neue Videos gefunden (noch ungefiltert).";
+  status.textContent = passende.length + " neue Videos";
 }
 
 start();
