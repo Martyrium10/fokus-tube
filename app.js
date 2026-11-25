@@ -16,7 +16,7 @@ const KANAELE = [
     mussEnthalten: ["Highlights"],
     einsDavon: ["Chiefs", "Bills", "Vikings"],
   },
-  { handle: "@sportstudiofussball", einsDavon: ["Frankfurt"] }, // vorläufig
+  { handle: "@sportstudiofussball", einsDavon: ["Eintracht Frankfurt"] },
   { handle: "@Simplicissimus" },
   { handle: "@Jules1" },
   { handle: "@spacefrogs" },
@@ -31,7 +31,7 @@ const KANAELE = [
   { handle: "@MaxFosh" },
   { handle: "@LanterneRougeCycling" },
   { handle: "@imsorrywhatcomedy" },
-  { handle: "@heuteshow", mindestMinuten: 25 }, // vorläufig
+  { handle: "@heuteshow", mussEnthalten: ["heute-show vom"] },
   { handle: "@AverageRob" },
   { handle: "@RobBubble" },
   { handle: "@Micro-Econ-YT" },
@@ -63,7 +63,7 @@ const KANAELE = [
   { handle: "@GIFGAS" },
   { handle: "@mikeybrockmann" },
   { handle: "@TomStantonEngineering" },
-  { handle: "@TomGrossiComedy", einsDavon: ["Fan"] }, // vorläufig
+  { handle: "@TomGrossiComedy", mussEnthalten: ["Fan", "Reaction"] },
 ];
 // ===== 2. KANAL-INFOS (mit Zwischenspeicher) =====
 
@@ -110,20 +110,132 @@ async function kanalInfoHolen(handle) {
   return info;
 }
 
-// ===== 3. HAUPTABLAUF =====
+// ===== 3. NEUE VIDEOS EINES KANALS HOLEN =====
+
+// Holt aus einer Upload-Playlist alle Videos der letzten TAGE_ZURUECK Tage.
+// YouTube liefert höchstens 50 Videos pro Anfrage ("Seite").
+// Die Playlist ist nach Datum sortiert (neueste zuerst). Darum hören wir auf,
+// sobald wir auf ein älteres Video stoßen.
+async function neueVideosHolen(playlistId) {
+  const grenze = new Date();
+  grenze.setDate(grenze.getDate() - TAGE_ZURUECK);
+
+  const videos = [];
+  let seitenToken = "";
+  let seitenZahl = 0;
+  let weiterSuchen = true;
+
+  while (weiterSuchen) {
+    const adresse =
+      "https://www.googleapis.com/youtube/v3/playlistItems" +
+      "?part=snippet,contentDetails" +
+      "&maxResults=50" +
+      "&playlistId=" +
+      playlistId +
+      "&pageToken=" +
+      seitenToken +
+      "&key=" +
+      API_SCHLUESSEL;
+
+    const antwort = await fetch(adresse);
+    const daten = await antwort.json();
+    seitenZahl = seitenZahl + 1;
+
+    if (!antwort.ok) {
+      console.warn(
+        "Playlist nicht abrufbar: " +
+          playlistId +
+          " (" +
+          daten.error.message +
+          ")",
+      );
+      return null;
+    }
+
+    for (const eintrag of daten.items) {
+      const datumText = eintrag.contentDetails.videoPublishedAt;
+
+      // Private oder gelöschte Videos haben kein Datum -> überspringen
+      if (!datumText) {
+        continue;
+      }
+
+      const datum = new Date(datumText);
+
+      if (datum < grenze) {
+        weiterSuchen = false;
+      } else {
+        videos.push({
+          id: eintrag.contentDetails.videoId,
+          titel: eintrag.snippet.title,
+          datum: datum,
+        });
+      }
+    }
+
+    // Keine weitere Seite da, oder Sicherheitsgrenze erreicht -> aufhören
+    if (!daten.nextPageToken || seitenZahl >= 6) {
+      weiterSuchen = false;
+    }
+    seitenToken = daten.nextPageToken;
+  }
+
+  return videos;
+}
+
+// Erledigt alles für einen Kanal: erst die Infos, dann die neuen Videos.
+async function kanalVerarbeiten(eintrag) {
+  const info = await kanalInfoHolen(eintrag.handle);
+  if (!info) {
+    return [];
+  }
+
+  // Versteckte Playlist nur mit "normalen" Videos (ohne Shorts und Livestreams):
+  // aus "UUabc..." wird "UULFabc..."
+  const playlistOhneShorts = "UULF" + info.uploadPlaylist.slice(2);
+  let videos = await neueVideosHolen(playlistOhneShorts);
+
+  // Falls es die nicht gibt: normale Upload-Playlist als Ersatz nehmen
+  if (videos === null) {
+    console.warn("Ersatz: normale Uploads für " + info.name);
+    videos = await neueVideosHolen(info.uploadPlaylist);
+  }
+
+  if (videos === null) {
+    return [];
+  }
+
+  // Jedem Video merken wir uns den Kanalnamen und die Filter-Einstellungen
+  for (const video of videos) {
+    video.kanal = info.name;
+    video.kanalEintrag = eintrag;
+  }
+
+  return videos;
+}
+// ===== 4. HAUPTABLAUF =====
 
 async function start() {
   const status = document.getElementById("status");
-  status.textContent = "Lade Kanäle …";
+  status.textContent = "Lade Videos …";
 
-  const infos = await Promise.all(
-    KANAELE.map((eintrag) => kanalInfoHolen(eintrag.handle)),
+  const videosProKanal = await Promise.all(KANAELE.map(kanalVerarbeiten));
+  const alleVideos = videosProKanal.flat();
+
+  // Neueste zuerst
+  alleVideos.sort((a, b) => b.datum - a.datum);
+
+  console.log("Gefundene Videos:", alleVideos.length);
+  console.table(
+    alleVideos.map((video) => ({
+      kanal: video.kanal,
+      titel: video.titel,
+      datum: video.datum.toLocaleString("de-DE"),
+    })),
   );
 
-  const gefunden = infos.filter((info) => info !== null);
-  console.table(gefunden);
   status.textContent =
-    gefunden.length + " von " + KANAELE.length + " Kanälen gefunden.";
+    alleVideos.length + " neue Videos gefunden (noch ungefiltert).";
 }
 
 start();
