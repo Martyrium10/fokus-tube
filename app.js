@@ -243,7 +243,9 @@ async function videoDetailsHolen(videos) {
       video.sekunden = dauerInSekunden(details.contentDetails.duration);
       video.einbettbar = details.status.embeddable;
       video.live = details.snippet.liveBroadcastContent; // "none", "live" oder "upcoming"
-      video.bild = details.snippet.thumbnails.medium.url;
+      const bilder = details.snippet.thumbnails;
+      const bestesBild = bilder.standard || bilder.high || bilder.medium;
+      video.bild = bestesBild.url;
     }
   }
 }
@@ -329,7 +331,67 @@ function videoPasst(video) {
   return true;
 }
 
-// ===== 6. HAUPTABLAUF =====
+// ===== 6. ANZEIGE =====
+
+// Macht aus einem Datum einen Text wie "vor 3 Stunden" oder "vor 2 Tagen"
+function wieLangeHer(datum) {
+  const stunden = Math.floor((new Date() - datum) / (1000 * 60 * 60));
+
+  if (stunden < 1) {
+    return "gerade eben";
+  }
+  if (stunden === 1) {
+    return "vor 1 Stunde";
+  }
+  if (stunden < 24) {
+    return "vor " + stunden + " Stunden";
+  }
+
+  const tage = Math.floor(stunden / 24);
+  if (tage === 1) {
+    return "vor 1 Tag";
+  }
+  return "vor " + tage + " Tagen";
+}
+
+// Baut für jedes Video eine Karte und hängt sie in die Liste auf der Seite
+function videosAnzeigen(videos) {
+  const liste = document.getElementById("video-liste");
+  liste.innerHTML = ""; // Liste erst einmal leeren
+
+  for (const video of videos) {
+    const karte = document.createElement("li");
+    karte.className = "video-karte";
+
+    const bild = document.createElement("img");
+    bild.className = "vorschaubild";
+    bild.src = video.bild;
+    bild.alt = "";
+    bild.loading = "lazy";
+
+    const info = document.createElement("div");
+    info.className = "video-info";
+
+    const titel = document.createElement("h3");
+    titel.className = "video-titel";
+    titel.textContent = video.titel;
+
+    const meta = document.createElement("p");
+    meta.className = "video-meta";
+    meta.textContent =
+      video.kanal +
+      " · " +
+      wieLangeHer(video.datum) +
+      " · " +
+      dauerAlsText(video.sekunden);
+
+    info.append(titel, meta);
+    karte.append(bild, info);
+    liste.append(karte);
+  }
+}
+
+// ===== 7. HAUPTABLAUF =====
 
 // Macht aus einem Video eine kurze Zeile für die Tabelle in der Konsole
 function tabellenZeile(video) {
@@ -355,7 +417,7 @@ async function start() {
 
   // Neueste zuerst
   passende.sort((a, b) => b.datum - a.datum);
-
+  videosAnzeigen(passende);
   console.log("ANGEZEIGT:", passende.length);
   console.table(passende.map(tabellenZeile));
   console.log("AUSSORTIERT:", aussortiert.length);
