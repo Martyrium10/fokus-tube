@@ -65,9 +65,19 @@ const KANAELE = [
   { handle: "@TomStantonEngineering" },
   { handle: "@TomGrossiComedy", einsDavon: ["Fan"] }, // vorläufig
 ];
-// ===== 2. TEST: Infos zu einem Kanal holen (vorläufig) =====
+// ===== 2. KANAL-INFOS (mit Zwischenspeicher) =====
 
+// Holt Name und Upload-Playlist eines Kanals.
+// Gefundene Kanäle merken wir uns im localStorage,
+// damit wir YouTube nicht bei jedem Neuladen fragen müssen.
 async function kanalInfoHolen(handle) {
+  const speicherName = "kanal_" + handle;
+  const gespeichert = localStorage.getItem(speicherName);
+
+  if (gespeichert) {
+    return JSON.parse(gespeichert);
+  }
+
   const adresse =
     "https://www.googleapis.com/youtube/v3/channels" +
     "?part=snippet,contentDetails" +
@@ -80,22 +90,40 @@ async function kanalInfoHolen(handle) {
   const daten = await antwort.json();
 
   if (!antwort.ok) {
-    console.error("Fehler von der YouTube-API:", daten.error.message);
-    return;
+    console.error("Fehler bei " + handle + ":", daten.error.message);
+    return null;
   }
 
   if (!daten.items || daten.items.length === 0) {
     console.warn("Kanal nicht gefunden:", handle);
-    return;
+    return null;
   }
 
   const kanal = daten.items[0];
-  console.log("Kanalname:", kanal.snippet.title);
-  console.log(
-    "Upload-Playlist:",
-    kanal.contentDetails.relatedPlaylists.uploads,
-  );
-  console.log("Komplette Antwort:", kanal);
+  const info = {
+    handle: handle,
+    name: kanal.snippet.title,
+    uploadPlaylist: kanal.contentDetails.relatedPlaylists.uploads,
+  };
+
+  localStorage.setItem(speicherName, JSON.stringify(info));
+  return info;
 }
 
-kanalInfoHolen("@NFL");
+// ===== 3. HAUPTABLAUF =====
+
+async function start() {
+  const status = document.getElementById("status");
+  status.textContent = "Lade Kanäle …";
+
+  const infos = await Promise.all(
+    KANAELE.map((eintrag) => kanalInfoHolen(eintrag.handle)),
+  );
+
+  const gefunden = infos.filter((info) => info !== null);
+  console.table(gefunden);
+  status.textContent =
+    gefunden.length + " von " + KANAELE.length + " Kanälen gefunden.";
+}
+
+start();
