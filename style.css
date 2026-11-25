@@ -206,3 +206,56 @@ main {
 .fehler:empty {
   display: none;
 }
+/* ===== Handy-Ansicht ===== */
+/* Alles hier drin gilt nur, wenn das Fenster schmaler als 600 Pixel ist */
+@media (max-width: 600px) {
+  .kopfzeile {
+    padding: 12px 16px;
+  }
+
+  .kopfzeile h1 {
+    font-size: 1.3rem;
+  }
+
+  main {
+    padding: 12px;
+  }
+
+  .player-bereich {
+    margin-bottom: 20px;
+  }
+
+  /* Player über die ganze Breite, ohne runde Ecken */
+  .player-rahmen {
+    width: auto;
+    margin: 0 -12px;
+    border-radius: 0;
+  }
+
+  .player-titel {
+    font-size: 1rem;
+  }
+
+  /* Knöpfe dürfen in die nächste Zeile umbrechen */
+  .tempo-leiste {
+    flex-wrap: wrap;
+  }
+
+  /* Größere Knöpfe für Finger */
+  .tempo-knopf,
+  .fertig-knopf,
+  .neu-laden-knopf,
+  .gesehen-knopf {
+    padding: 8px 12px;
+  }
+
+  /* "Fertig gesehen" bekommt eine eigene Zeile über die volle Breite */
+  .fertig-knopf {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .video-liste {
+    gap: 14px;
+  }
+}
