@@ -67,6 +67,9 @@ const KANAELE = [
 ];
 // ===== 2. KANAL-INFOS (mit Zwischenspeicher) =====
 
+// Hier merken wir uns den letzten Fehler von YouTube, um ihn auf der Seite anzuzeigen
+let letzterFehler = null;
+
 // Holt Name und Upload-Playlist eines Kanals.
 // Gefundene Kanäle merken wir uns im localStorage,
 // damit wir YouTube nicht bei jedem Neuladen fragen müssen.
@@ -91,6 +94,7 @@ async function kanalInfoHolen(handle) {
 
   if (!antwort.ok) {
     console.error("Fehler bei " + handle + ":", daten.error.message);
+    letzterFehler = daten.error.message;
     return null;
   }
 
@@ -149,6 +153,9 @@ async function neueVideosHolen(playlistId) {
           daten.error.message +
           ")",
       );
+      if (antwort.status !== 404) {
+        letzterFehler = daten.error.message;
+      }
       return null;
     }
 
@@ -235,6 +242,7 @@ async function videoDetailsHolen(videos) {
 
     if (!antwort.ok) {
       console.error("Fehler bei den Video-Details:", daten.error.message);
+      letzterFehler = daten.error.message;
       continue;
     }
 
@@ -537,15 +545,18 @@ function videoBeendet(video) {
   }
 
   aktuellesVideo = null;
+
+  // Player anhalten, damit keine YouTube-Vorschläge erscheinen
+  if (player !== null && player.stopVideo) {
+    player.stopVideo();
+  }
+
   videoErledigt(video);
   document.getElementById("player-titel").textContent = "✓ " + video.titel;
 }
 
-// "Fertig gesehen"-Knopf: Video anhalten und behandeln, als wäre es zu Ende
+// "Fertig gesehen"-Knopf
 function videoVorzeitigFertig() {
-  if (player !== null && player.stopVideo) {
-    player.stopVideo();
-  }
   videoBeendet(aktuellesVideo);
 }
 
@@ -591,7 +602,64 @@ for (const knopf of document.querySelectorAll(".tempo-knopf")) {
 }
 tempoKnoepfeMarkieren();
 
-// ===== 9. HAUPTABLAUF =====
+// ===== 9. ZWISCHENSPEICHER (Cache) =====
+
+const CACHE_MINUTEN = 30;
+
+// Holt die Videos aus dem Speicher, falls sie jünger als CACHE_MINUTEN sind
+function cacheLesen() {
+  const text = localStorage.getItem("videoCache");
+  if (!text) {
+    return null;
+  }
+
+  const cache = JSON.parse(text);
+  const alterInMinuten = (Date.now() - cache.zeit) / 60000;
+  if (alterInMinuten > CACHE_MINUTEN) {
+    return null;
+  }
+
+  const videos = [];
+  for (const video of cache.videos) {
+    // Aktuelle Filter-Einstellungen des Kanals aus KANAELE nehmen
+    const eintrag = KANAELE.find((k) => k.handle === video.kanalEintrag.handle);
+    if (!eintrag) {
+      continue; // Kanal wurde inzwischen aus der Liste entfernt
+    }
+    video.kanalEintrag = eintrag;
+    video.datum = new Date(video.datum); // Text wieder in ein Datum umwandeln
+    videos.push(video);
+  }
+  return videos;
+}
+
+function cacheSchreiben(videos) {
+  const cache = { zeit: Date.now(), videos: videos };
+  localStorage.setItem("videoCache", JSON.stringify(cache));
+}
+
+// Liefert alle Videos: aus dem Speicher oder frisch von YouTube
+async function alleVideosHolen(neuLaden) {
+  if (!neuLaden) {
+    const ausCache = cacheLesen();
+    if (ausCache) {
+      console.log("Videos aus dem Zwischenspeicher (0 Einheiten)");
+      return ausCache;
+    }
+  }
+
+  const videosProKanal = await Promise.all(KANAELE.map(kanalVerarbeiten));
+  const alleVideos = videosProKanal.flat();
+  await videoDetailsHolen(alleVideos);
+
+  if (alleVideos.length > 0) {
+    cacheSchreiben(alleVideos);
+  }
+  console.log("Videos frisch von YouTube geladen");
+  return alleVideos;
+}
+
+// ===== 10. HAUPTABLAUF =====
 
 // Macht aus einem Video eine kurze Zeile für die Tabelle in der Konsole
 function tabellenZeile(video) {
@@ -603,33 +671,60 @@ function tabellenZeile(video) {
   };
 }
 
-async function start() {
-  const status = document.getElementById("status");
-  status.textContent = "Lade Videos …";
-
-  alteEintraegeAufraeumen();
-
-  const videosProKanal = await Promise.all(KANAELE.map(kanalVerarbeiten));
-  const alleVideos = videosProKanal.flat();
-
-  await videoDetailsHolen(alleVideos);
-
-  const passende = alleVideos.filter(videoPasst);
-  const aussortiert = alleVideos.filter((video) => !videoPasst(video));
-  const ungesehen = passende.filter((video) => !istGesehen(video.id));
-
-  // Neueste zuerst
-  ungesehen.sort((a, b) => b.datum - a.datum);
-  videosAnzeigen(ungesehen);
-
-  console.log(
-    "ANGEZEIGT:",
-    ungesehen.length,
-    "| schon gesehen:",
-    passende.length - ungesehen.length,
-  );
-  console.table(ungesehen.map(tabellenZeile));
-  console.log("AUSSORTIERT:", aussortiert.length);
-  console.table(aussortiert.map(tabellenZeile));
+// Übersetzt Fehlermeldungen von YouTube in verständliches Deutsch
+function fehlerAlsText(meldung) {
+  if (meldung.toLowerCase().includes("quota")) {
+    return "Das YouTube-Tageskontingent ist aufgebraucht. Ab ca. 9 Uhr morgens geht es wieder.";
+  }
+  return "Nicht alle Videos konnten geladen werden: " + meldung;
 }
+
+async function start(neuLaden) {
+  const status = document.getElementById("status");
+  const fehler = document.getElementById("fehler");
+  status.textContent = "Lade Videos …";
+  fehler.textContent = "";
+  letzterFehler = null;
+
+  try {
+    alteEintraegeAufraeumen();
+
+    const alleVideos = await alleVideosHolen(neuLaden);
+
+    const passende = alleVideos.filter(videoPasst);
+    const aussortiert = alleVideos.filter((video) => !videoPasst(video));
+    const ungesehen = passende.filter((video) => !istGesehen(video.id));
+
+    // Neueste zuerst
+    ungesehen.sort((a, b) => b.datum - a.datum);
+    videosAnzeigen(ungesehen);
+
+    console.log(
+      "ANGEZEIGT:",
+      ungesehen.length,
+      "| schon gesehen:",
+      passende.length - ungesehen.length,
+    );
+    console.table(ungesehen.map(tabellenZeile));
+    console.log("AUSSORTIERT:", aussortiert.length);
+    console.table(aussortiert.map(tabellenZeile));
+
+    if (letzterFehler) {
+      fehler.textContent = fehlerAlsText(letzterFehler);
+      if (alleVideos.length === 0) {
+        status.textContent = "Laden fehlgeschlagen.";
+      }
+    }
+  } catch (problem) {
+    console.error(problem);
+    status.textContent = "Laden fehlgeschlagen.";
+    fehler.textContent =
+      "Keine Verbindung zu YouTube. Bist du online? Dann oben auf „Aktualisieren“ klicken.";
+  }
+}
+
+document
+  .getElementById("neu-laden-knopf")
+  .addEventListener("click", () => start(true));
+
 start();
