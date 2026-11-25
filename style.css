@@ -135,3 +135,43 @@ main {
   color: #121212;
   border-color: #e8e8e8;
 }
+/* Untere Zeile der Karte: Infos links, Gesehen-Knopf rechts */
+.video-unten {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gesehen-knopf {
+  flex-shrink: 0;
+  background: transparent;
+  color: #9a9a9a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.gesehen-knopf:hover {
+  color: #e8e8e8;
+  border-color: #e8e8e8;
+}
+/* "Fertig gesehen"-Knopf rechts in der Tempo-Leiste */
+.fertig-knopf {
+  margin-left: auto;
+  background: #2a2a2a;
+  color: #e8e8e8;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fertig-knopf:hover {
+  background: #2e7d32;
+  border-color: #2e7d32;
+}

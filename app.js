@@ -331,6 +331,46 @@ function videoPasst(video) {
   return true;
 }
 
+// ===== 5b. GESEHEN-SPEICHER =====
+
+// Alles rund um "schon gesehen" läuft NUR über diese Funktionen.
+// Gespeichert wird: Video-ID -> Zeitpunkt, wann es als gesehen markiert wurde.
+// Beispiel: { "abc123": 1764100000000, "def456": 1764200000000 }
+
+function gesehenLaden() {
+  const text = localStorage.getItem("gesehen");
+  if (!text) {
+    return {};
+  }
+  return JSON.parse(text);
+}
+
+function istGesehen(videoId) {
+  const gesehen = gesehenLaden();
+  return gesehen[videoId] !== undefined;
+}
+
+function alsGesehenMarkieren(videoId) {
+  const gesehen = gesehenLaden();
+  gesehen[videoId] = Date.now();
+  localStorage.setItem("gesehen", JSON.stringify(gesehen));
+}
+
+// Löscht Einträge, die älter als 14 Tage sind. Diese Videos
+// fallen sowieso aus dem 7-Tage-Zeitraum, der Speicher bleibt so klein.
+function alteEintraegeAufraeumen() {
+  const gesehen = gesehenLaden();
+  const grenze = Date.now() - 14 * 24 * 60 * 60 * 1000;
+
+  for (const videoId in gesehen) {
+    if (gesehen[videoId] < grenze) {
+      delete gesehen[videoId];
+    }
+  }
+
+  localStorage.setItem("gesehen", JSON.stringify(gesehen));
+}
+
 // ===== 6. ANZEIGE =====
 
 // Macht aus einem Datum einen Text wie "vor 3 Stunden" oder "vor 2 Tagen"
@@ -376,6 +416,9 @@ function videosAnzeigen(videos) {
     titel.className = "video-titel";
     titel.textContent = video.titel;
 
+    const unten = document.createElement("div");
+    unten.className = "video-unten";
+
     const meta = document.createElement("p");
     meta.className = "video-meta";
     meta.textContent =
@@ -385,13 +428,47 @@ function videosAnzeigen(videos) {
       " · " +
       dauerAlsText(video.sekunden);
 
-    info.append(titel, meta);
+    const knopf = document.createElement("button");
+    knopf.className = "gesehen-knopf";
+    knopf.textContent = "✓ Gesehen";
+    knopf.title = "Als gesehen markieren";
+    knopf.addEventListener("click", (ereignis) => {
+      ereignis.stopPropagation(); // sonst würde der Klick auch das Video starten
+      videoErledigt(video);
+    });
+
+    unten.append(meta, knopf);
+    info.append(titel, unten);
     karte.append(bild, info);
     karte.addEventListener("click", () => videoAbspielen(video));
     liste.append(karte);
+
+    video.karte = karte; // merken, damit wir die Karte später entfernen können
   }
+
+  statusAktualisieren();
 }
 
+// Markiert ein Video als gesehen und nimmt seine Karte aus der Liste
+function videoErledigt(video) {
+  alsGesehenMarkieren(video.id);
+  video.karte.remove();
+  statusAktualisieren();
+}
+
+// Zeigt oben an, wie viele Videos noch übrig sind
+function statusAktualisieren() {
+  const anzahl = document.getElementById("video-liste").children.length;
+  const status = document.getElementById("status");
+
+  if (anzahl === 0) {
+    status.textContent = "Alles gesehen. Zeit für etwas anderes!";
+  } else if (anzahl === 1) {
+    status.textContent = "1 neues Video";
+  } else {
+    status.textContent = anzahl + " neue Videos";
+  }
+}
 // ===== 7. PLAYER =====
 
 let player = null; // der YouTube-Player (wird beim ersten Klick erstellt)
@@ -452,12 +529,29 @@ function playerStatusGeaendert(ereignis) {
   }
 }
 
-// Wird aufgerufen, wenn ein Video zu Ende ist.
-// Hier hängen wir später "als gesehen speichern" und die Google-Tasks-Anzeige an.
+// Wird aufgerufen, wenn ein Video fertig ist: am Ende ODER per "Fertig"-Knopf.
+// Später kommt hier noch die Google-Tasks-Anzeige dazu.
 function videoBeendet(video) {
-  console.log("Video zu Ende:", video.titel);
+  if (video === null) {
+    return; // nichts zu tun, z. B. bei doppelter Ende-Meldung von YouTube
+  }
+
+  aktuellesVideo = null;
+  videoErledigt(video);
+  document.getElementById("player-titel").textContent = "✓ " + video.titel;
 }
 
+// "Fertig gesehen"-Knopf: Video anhalten und behandeln, als wäre es zu Ende
+function videoVorzeitigFertig() {
+  if (player !== null && player.stopVideo) {
+    player.stopVideo();
+  }
+  videoBeendet(aktuellesVideo);
+}
+
+document
+  .getElementById("fertig-knopf")
+  .addEventListener("click", videoVorzeitigFertig);
 // ===== 8. TEMPO =====
 
 // Zuletzt gewähltes Tempo aus dem Speicher holen (sonst 1)
@@ -513,6 +607,8 @@ async function start() {
   const status = document.getElementById("status");
   status.textContent = "Lade Videos …";
 
+  alteEintraegeAufraeumen();
+
   const videosProKanal = await Promise.all(KANAELE.map(kanalVerarbeiten));
   const alleVideos = videosProKanal.flat();
 
@@ -520,16 +616,20 @@ async function start() {
 
   const passende = alleVideos.filter(videoPasst);
   const aussortiert = alleVideos.filter((video) => !videoPasst(video));
+  const ungesehen = passende.filter((video) => !istGesehen(video.id));
 
   // Neueste zuerst
-  passende.sort((a, b) => b.datum - a.datum);
-  videosAnzeigen(passende);
-  console.log("ANGEZEIGT:", passende.length);
-  console.table(passende.map(tabellenZeile));
+  ungesehen.sort((a, b) => b.datum - a.datum);
+  videosAnzeigen(ungesehen);
+
+  console.log(
+    "ANGEZEIGT:",
+    ungesehen.length,
+    "| schon gesehen:",
+    passende.length - ungesehen.length,
+  );
+  console.table(ungesehen.map(tabellenZeile));
   console.log("AUSSORTIERT:", aussortiert.length);
   console.table(aussortiert.map(tabellenZeile));
-
-  status.textContent = passende.length + " neue Videos";
 }
-
 start();
