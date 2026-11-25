@@ -22,6 +22,7 @@ const KANAELE = [
   },
   { handle: "@sportstudiofussball", einsDavon: ["Eintracht Frankfurt"] },
   { handle: "@Simplicissimus" },
+  { handle: "@veritasium" },
   { handle: "@Jules1" },
   { handle: "@spacefrogs" },
   { handle: "@fern-tv" },
