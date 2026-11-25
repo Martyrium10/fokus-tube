@@ -387,11 +387,117 @@ function videosAnzeigen(videos) {
 
     info.append(titel, meta);
     karte.append(bild, info);
+    karte.addEventListener("click", () => videoAbspielen(video));
     liste.append(karte);
   }
 }
 
-// ===== 7. HAUPTABLAUF =====
+// ===== 7. PLAYER =====
+
+let player = null; // der YouTube-Player (wird beim ersten Klick erstellt)
+let playerApiBereit = false; // ist die YouTube-Bibliothek schon geladen?
+let aktuellesVideo = null; // welches Video gerade läuft
+
+// Diese Funktion ruft die YouTube-Bibliothek von selbst auf, sobald sie geladen ist.
+// Der Name ist von YouTube vorgegeben und darf nicht geändert werden.
+function onYouTubeIframeAPIReady() {
+  playerApiBereit = true;
+}
+
+// Spielt ein Video im Player oben auf der Seite ab
+function videoAbspielen(video) {
+  if (!playerApiBereit) {
+    document.getElementById("status").textContent =
+      "Der Player lädt noch, bitte gleich noch einmal klicken.";
+    return;
+  }
+
+  aktuellesVideo = video;
+  document.getElementById("player-titel").textContent = video.titel;
+
+  if (player === null) {
+    // Erster Klick: Player erstellen
+    player = new YT.Player("player", {
+      videoId: video.id,
+      playerVars: {
+        autoplay: 1,
+        rel: 0,
+        origin: window.location.origin,
+      },
+      events: {
+        onStateChange: playerStatusGeaendert,
+      },
+    });
+  } else {
+    // Player gibt es schon: nur das Video wechseln
+    player.loadVideoById(video.id);
+  }
+
+  // Nach oben zum Player scrollen
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Wird von YouTube aufgerufen, wenn sich der Zustand ändert (Start, Pause, Ende …)
+function playerStatusGeaendert(ereignis) {
+  // Beim Start eines Videos unser gewähltes Tempo setzen
+  // (YouTube setzt es bei einem neuen Video sonst auf 1 zurück)
+  if (ereignis.data === YT.PlayerState.PLAYING) {
+    if (player.getPlaybackRate() !== gewaehltesTempo) {
+      player.setPlaybackRate(gewaehltesTempo);
+    }
+  }
+
+  if (ereignis.data === YT.PlayerState.ENDED) {
+    videoBeendet(aktuellesVideo);
+  }
+}
+
+// Wird aufgerufen, wenn ein Video zu Ende ist.
+// Hier hängen wir später "als gesehen speichern" und die Google-Tasks-Anzeige an.
+function videoBeendet(video) {
+  console.log("Video zu Ende:", video.titel);
+}
+
+// ===== 8. TEMPO =====
+
+// Zuletzt gewähltes Tempo aus dem Speicher holen (sonst 1)
+let gewaehltesTempo = Number(localStorage.getItem("tempo")) || 1;
+
+function tempoSetzen(tempo) {
+  gewaehltesTempo = tempo;
+  localStorage.setItem("tempo", tempo);
+
+  if (player !== null && player.setPlaybackRate) {
+    player.setPlaybackRate(tempo);
+    console.log(
+      "Mögliche Tempi bei diesem Video:",
+      player.getAvailablePlaybackRates(),
+    );
+  }
+
+  tempoKnoepfeMarkieren();
+}
+
+// Hebt den Knopf des gewählten Tempos hervor
+function tempoKnoepfeMarkieren() {
+  for (const knopf of document.querySelectorAll(".tempo-knopf")) {
+    if (Number(knopf.dataset.tempo) === gewaehltesTempo) {
+      knopf.classList.add("aktiv");
+    } else {
+      knopf.classList.remove("aktiv");
+    }
+  }
+}
+
+// Jeden Tempo-Knopf anklickbar machen
+for (const knopf of document.querySelectorAll(".tempo-knopf")) {
+  knopf.addEventListener("click", () =>
+    tempoSetzen(Number(knopf.dataset.tempo)),
+  );
+}
+tempoKnoepfeMarkieren();
+
+// ===== 9. HAUPTABLAUF =====
 
 // Macht aus einem Video eine kurze Zeile für die Tabelle in der Konsole
 function tabellenZeile(video) {

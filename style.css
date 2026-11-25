@@ -106,3 +106,32 @@ main {
   color: #9a9a9a;
   font-size: 0.85rem;
 }
+/* Tempo-Knöpfe */
+.tempo-leiste {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #9a9a9a;
+  font-size: 0.9rem;
+}
+
+.tempo-knopf {
+  background: #2a2a2a;
+  color: #e8e8e8;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tempo-knopf:hover {
+  background: #353535;
+}
+
+.tempo-knopf.aktiv {
+  background: #e8e8e8;
+  color: #121212;
+  border-color: #e8e8e8;
+}
