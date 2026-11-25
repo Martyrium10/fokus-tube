@@ -3,6 +3,10 @@
 // Dein API-Schlüssel aus der Google Cloud Console
 const API_SCHLUESSEL = "AIzaSyAlja7QyN3Q3NV3aIukl4mYXGBfA2--nr0";
 
+// Client-ID für den Google-Login (darf öffentlich sein)
+const GOOGLE_CLIENT_ID =
+  "517234073856-u9pj75tgenbkvuadfdv5ngc94m51rkqb.apps.googleusercontent.com";
+
 // Wie viele Tage zurück sollen Videos angezeigt werden?
 const TAGE_ZURUECK = 7;
 
@@ -659,7 +663,75 @@ async function alleVideosHolen(neuLaden) {
   return alleVideos;
 }
 
-// ===== 10. HAUPTABLAUF =====
+// ===== 10. GOOGLE-LOGIN =====
+
+// Welche Rechte wir bei Google anfragen.
+// drive.appdata = NUR der versteckte App-Ordner in deinem Drive, nichts anderes.
+const GOOGLE_RECHTE = "https://www.googleapis.com/auth/drive.appdata";
+
+let googleZugang = null; // Zugangs-Token von Google (gilt ca. 1 Stunde)
+let tokenClient = null; // das "Anmelde-Werkzeug" von Google
+
+function mitGoogleVerbinden() {
+  // Ist die Google-Bibliothek schon geladen?
+  if (!window.google || !google.accounts) {
+    document.getElementById("fehler").textContent =
+      "Der Google-Login lädt noch, bitte gleich noch einmal klicken.";
+    return;
+  }
+
+  // Beim ersten Klick das Anmelde-Werkzeug einrichten
+  if (tokenClient === null) {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_RECHTE,
+      callback: googleAntwort,
+      error_callback: googleFensterProblem,
+    });
+  }
+
+  // Anmeldefenster öffnen
+  tokenClient.requestAccessToken();
+}
+
+// Wird aufgerufen, wenn Google antwortet
+function googleAntwort(antwort) {
+  if (antwort.error) {
+    console.error("Google-Login fehlgeschlagen:", antwort);
+    document.getElementById("fehler").textContent =
+      "Die Verbindung mit Google hat nicht geklappt.";
+    return;
+  }
+
+  googleZugang = antwort.access_token;
+
+  const knopf = document.getElementById("google-knopf");
+  knopf.textContent = "☁ Verbunden";
+  knopf.classList.add("verbunden");
+  document.getElementById("fehler").textContent = "";
+
+  console.log(
+    "Mit Google verbunden. Zugang gilt für",
+    antwort.expires_in,
+    "Sekunden.",
+  );
+  // In Schritt 11d starten wir hier den Abgleich
+}
+
+// Wird aufgerufen, wenn das Anmeldefenster nicht aufgeht oder geschlossen wird
+function googleFensterProblem(problem) {
+  console.warn("Google-Fenster:", problem.type);
+  if (problem.type === "popup_failed_to_open") {
+    document.getElementById("fehler").textContent =
+      "Das Google-Fenster wurde blockiert. Bitte Pop-ups für diese Seite erlauben.";
+  }
+}
+
+document
+  .getElementById("google-knopf")
+  .addEventListener("click", mitGoogleVerbinden);
+
+// ===== 11. HAUPTABLAUF =====
 
 // Macht aus einem Video eine kurze Zeile für die Tabelle in der Konsole
 function tabellenZeile(video) {

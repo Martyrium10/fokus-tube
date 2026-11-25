@@ -259,3 +259,32 @@ main {
     gap: 14px;
   }
 }
+/* Knöpfe rechts in der Kopfzeile */
+.kopfzeile {
+  flex-wrap: wrap;
+}
+
+.kopf-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.google-knopf {
+  background: #2a2a2a;
+  color: #e8e8e8;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.google-knopf:hover {
+  background: #353535;
+}
+
+.google-knopf.verbunden {
+  border-color: #2e7d32;
+  color: #81c784;
+}
