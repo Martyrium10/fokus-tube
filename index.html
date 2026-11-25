@@ -1,11 +1,49 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
+    <title>Fokus-Tube</title>
+    <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h1>Test</h1>
+    <header class="kopfzeile">
+      <h1>Fokus-Tube</h1>
+      <p id="status" class="status">Noch keine Videos geladen.</p>
+    </header>
+
+    <main>
+      <!-- Bereich für den Player -->
+      <section class="player-bereich">
+        <div class="player-rahmen">
+          <div id="player">Hier läuft später das Video.</div>
+        </div>
+        <h2 id="player-titel" class="player-titel"></h2>
+      </section>
+
+      <!-- Liste der neuen Videos -->
+      <section>
+        <h2>Neue Videos</h2>
+        <ul id="video-liste" class="video-liste">
+          <!-- Platzhalter: werden in Schritt 5 durch echte Videos ersetzt -->
+          <li class="video-karte">
+            <div class="vorschaubild"></div>
+            <div class="video-info">
+              <h3 class="video-titel">Beispielvideo 1</h3>
+              <p class="video-meta">Kanalname · vor 2 Tagen · 12:34</p>
+            </div>
+          </li>
+          <li class="video-karte">
+            <div class="vorschaubild"></div>
+            <div class="video-info">
+              <h3 class="video-titel">Beispielvideo 2</h3>
+              <p class="video-meta">Kanalname · vor 5 Tagen · 8:02</p>
+            </div>
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
   </body>
 </html>
