@@ -1,7 +1,7 @@
 // ===== 1. EINSTELLUNGEN =====
 
 // Dein API-Schlüssel aus der Google Cloud Console
-const API_SCHLUESSEL = "AIzaSyBvgySXC-4gIVIbZoyT7HLl-wxcmmt7FIw";
+const API_SCHLUESSEL = "AIzaSyAlja7QyN3Q3NV3aIukl4mYXGBfA2--nr0";
 
 // Wie viele Tage zurück sollen Videos angezeigt werden?
 const TAGE_ZURUECK = 7;
