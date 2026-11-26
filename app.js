@@ -23,6 +23,8 @@ const KANAELE = [
   { handle: "@sportstudiofussball", einsDavon: ["Eintracht Frankfurt"] },
   { handle: "@Simplicissimus" },
   { handle: "@veritasium" },
+  { handle: "@Ididathing" },
+  { handle: "@SpaceGaming" },
   { handle: "@Jules1" },
   { handle: "@spacefrogs" },
   { handle: "@fern-tv" },
@@ -45,7 +47,7 @@ const KANAELE = [
   { handle: "@DerHeider" },
   { handle: "@tomatolix" },
   { handle: "@ZabelRick" },
-  { handle: "@hubikoch" },
+  { handle: "@hubikoch", mussEnthalten: ["FULL DOKU"] },
   { handle: "@SaschaHellinger" },
   { handle: "@neinmarius" },
   { handle: "@halfasinteresting" },
@@ -69,6 +71,18 @@ const KANAELE = [
   { handle: "@mikeybrockmann" },
   { handle: "@TomStantonEngineering" },
   { handle: "@TomGrossiComedy", mussEnthalten: ["Fan", "Reaction"] },
+  {
+    handle: "@Formula1",
+    einsDavon: [
+      "Race Highlights",
+      "Qualifying Highlights",
+      "Sprint Highlights",
+      "Sprinthighlights",
+      "Extended Highlights",
+    ],
+    darfNichtEnthalten: ["F2", "F3", "Academy", "Pre-Season", "Shakedown"],
+    nurAktuellesJahr: true,
+  },
 ];
 // ===== 2. KANAL-INFOS (mit Zwischenspeicher) =====
 
@@ -332,6 +346,14 @@ function videoPasst(video) {
       titel.includes(wort.toLowerCase()),
     );
     if (treffer) {
+      return false;
+    }
+  }
+
+  // nurAktuellesJahr: das aktuelle Jahr (z. B. 2026) muss im Titel stehen
+  if (filter.nurAktuellesJahr) {
+    const jahr = String(new Date().getFullYear());
+    if (!titel.includes(jahr)) {
       return false;
     }
   }
