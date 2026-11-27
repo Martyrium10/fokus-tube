@@ -338,6 +338,9 @@ async function videoDetailsHolen(videos) {
 
 // Wandelt die YouTube-Dauer (z. B. "PT1H2M30S") in Sekunden um
 function dauerInSekunden(text) {
+  if (!text) {
+    return undefined;
+  }
   const teile = text.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!teile) {
     return 0;
