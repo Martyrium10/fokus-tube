@@ -630,6 +630,30 @@ for (const knopf of document.querySelectorAll(".tempo-knopf")) {
 }
 tempoKnoepfeMarkieren();
 
+// ===== 8b. KINOMODUS =====
+
+function kinomodusSetzen(an) {
+  const knopf = document.getElementById("kino-knopf");
+
+  if (an) {
+    document.body.classList.add("kino");
+    knopf.textContent = "▭ Normal";
+  } else {
+    document.body.classList.remove("kino");
+    knopf.textContent = "▭ Kinomodus";
+  }
+
+  localStorage.setItem("kino", an);
+}
+
+document.getElementById("kino-knopf").addEventListener("click", () => {
+  const istAn = document.body.classList.contains("kino");
+  kinomodusSetzen(!istAn);
+});
+
+// Beim Laden der Seite den zuletzt gewählten Modus wiederherstellen
+kinomodusSetzen(localStorage.getItem("kino") === "true");
+
 // ===== 9. ZWISCHENSPEICHER (Cache) =====
 
 const CACHE_MINUTEN = 30;

@@ -322,3 +322,46 @@ main {
     justify-content: flex-start;
   }
 }
+/* ===== Player-Größe: Normal und Kinomodus ===== */
+
+/* Normalmodus: Player etwas kleiner und mittig */
+.player-bereich {
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.kino-knopf {
+  margin-left: 12px;
+  background: #2a2a2a;
+  color: #e8e8e8;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.kino-knopf:hover {
+  background: #353535;
+}
+
+/* Kinomodus: Seite nicht mehr auf 1100px begrenzen */
+.kino main,
+.kino .player-bereich {
+  max-width: none;
+}
+
+/* Player so breit wie möglich, aber nur so hoch, dass er ins Fenster passt */
+.kino .player-bereich > * {
+  width: min(100%, calc((100vh - 100px) * 16 / 9));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Auf dem Handy gibt es keinen Kinomodus (der Player ist dort ohnehin voll breit) */
+@media (max-width: 600px) {
+  .kino-knopf {
+    display: none;
+  }
+}
