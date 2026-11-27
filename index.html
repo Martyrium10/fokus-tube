@@ -49,8 +49,18 @@
 
       <!-- Liste der neuen Videos -->
       <section>
-        <h2>Neue Videos</h2>
-        <ul id="video-liste" class="video-liste"></ul>
+        <div class="liste-kopf">
+          <h2>Neue Videos</h2>
+          <div class="ansicht-knoepfe">
+            <button class="ansicht-knopf" data-ansicht="neueste">
+              Neueste zuerst
+            </button>
+            <button class="ansicht-knopf" data-ansicht="themen">
+              Nach Themen
+            </button>
+          </div>
+        </div>
+        <div id="video-bereich"></div>
       </section>
     </main>
 

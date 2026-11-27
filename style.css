@@ -365,3 +365,54 @@ main {
     display: none;
   }
 }
+
+/* ===== Ansicht: Neueste zuerst / Nach Themen ===== */
+.liste-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.liste-kopf h2 {
+  margin: 0;
+}
+
+.ansicht-knoepfe {
+  display: flex;
+  gap: 6px;
+}
+
+.ansicht-knopf {
+  background: #2a2a2a;
+  color: #e8e8e8;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ansicht-knopf:hover {
+  background: #353535;
+}
+
+.ansicht-knopf.aktiv {
+  background: #e8e8e8;
+  color: #121212;
+  border-color: #e8e8e8;
+}
+
+/* Themen-Abschnitte */
+.thema-abschnitt {
+  margin-bottom: 28px;
+}
+
+.thema-abschnitt summary {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  cursor: pointer;
+}

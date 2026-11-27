@@ -84,6 +84,65 @@ const KANAELE = [
     nurAktuellesJahr: true,
   },
 ];
+
+// Themen für die Ansicht "Nach Themen". Reihenfolge hier = Reihenfolge auf der Seite.
+// Kanäle, die hier nicht stehen, landen automatisch unter "Sonstiges".
+const THEMEN = {
+  Sport: ["@NFL", "@sportstudiofussball", "@Formula1", "@LanterneRougeCycling"],
+  Wissen: [
+    "@Simplicissimus",
+    "@AliciaJoe",
+    "@Micro-Econ-YT",
+    "@halfasinteresting",
+    "@100SekundenPhysik",
+    "@MrWissen2go",
+    "@KurzgesagtDE",
+    "@TomScottGo",
+    "@Wendoverproductions",
+    "@neoexplains",
+    "@tomatolix",
+    "@RobBubble",
+    "@fern-tv",
+    "@hoog-youtube",
+    "@AndreasVenzl",
+    "@IMPERIALYT",
+    "@veritasium",
+  ],
+  "Bastel-Stuff": [
+    "@rctestflight",
+    "@MarkRober",
+    "@colinfurze",
+    "@StuffMadeHere",
+    "@TheBackyardScientist",
+    "@TheRealLifeGuys",
+    "@TomStantonEngineering",
+    "@Ididathing",
+  ],
+  Unterhaltung: [
+    "@heuteshow",
+    "@MaxFosh",
+    "@dudeperfect",
+    "@TomGrossiComedy",
+    "@imsorrywhatcomedy",
+    "@coldmirror",
+    "@DashcamDriversGermany",
+    "@unsympathischtv",
+    "@martifischer",
+    "@2BoredGuysOfficial",
+    "@AverageRob",
+    "@ZabelRick",
+    "@Jules1",
+    "@spacefrogs",
+    "@dave_",
+    "@DerHeider",
+    "@SaschaHellinger",
+    "@neinmarius",
+    "@_reidolson",
+    "@mikeybrockmann",
+    "@SpaceGaming",
+  ],
+  Filme: ["@GIFGAS", "@shiey", "@hubikoch"],
+};
 // ===== 2. KANAL-INFOS (mit Zwischenspeicher) =====
 
 // Hier merken wir uns den letzten Fehler von YouTube, um ihn auf der Seite anzuzeigen
@@ -409,6 +468,10 @@ function alteEintraegeAufraeumen() {
 
 // ===== 6. ANZEIGE =====
 
+let angezeigteVideos = []; // die Videos, die gerade auf der Seite stehen
+let ansicht = localStorage.getItem("ansicht") || "neueste"; // "neueste" oder "themen"
+let zugeklappteThemen = JSON.parse(localStorage.getItem("zugeklappt") || "[]");
+
 // Macht aus einem Datum einen Text wie "vor 3 Stunden" oder "vor 2 Tagen"
 function wieLangeHer(datum) {
   const stunden = Math.floor((new Date() - datum) / (1000 * 60 * 60));
@@ -430,71 +493,149 @@ function wieLangeHer(datum) {
   return "vor " + tage + " Tagen";
 }
 
-// Baut für jedes Video eine Karte und hängt sie in die Liste auf der Seite
-function videosAnzeigen(videos) {
-  const liste = document.getElementById("video-liste");
-  liste.innerHTML = ""; // Liste erst einmal leeren
+// Macht aus Sekunden einen Text wie "1 Std. 9 Min." oder "42 Min."
+function gesamtdauerAlsText(sekunden) {
+  const stunden = Math.floor(sekunden / 3600);
+  const minuten = Math.floor((sekunden % 3600) / 60);
+  if (stunden > 0) {
+    return stunden + " Std. " + minuten + " Min.";
+  }
+  return minuten + " Min.";
+}
 
+// Sucht das Thema eines Videos in THEMEN (sonst "Sonstiges")
+function themaVon(video) {
+  for (const thema in THEMEN) {
+    if (THEMEN[thema].includes(video.kanalEintrag.handle)) {
+      return thema;
+    }
+  }
+  return "Sonstiges";
+}
+
+// Baut die Karte für ein einzelnes Video
+function karteBauen(video) {
+  const karte = document.createElement("li");
+  karte.className = "video-karte";
+
+  const bild = document.createElement("img");
+  bild.className = "vorschaubild";
+  bild.src = video.bild;
+  bild.alt = "";
+  bild.loading = "lazy";
+
+  const info = document.createElement("div");
+  info.className = "video-info";
+
+  const titel = document.createElement("h3");
+  titel.className = "video-titel";
+  titel.textContent = video.titel;
+
+  const unten = document.createElement("div");
+  unten.className = "video-unten";
+
+  const meta = document.createElement("p");
+  meta.className = "video-meta";
+  meta.textContent =
+    video.kanal +
+    " · " +
+    wieLangeHer(video.datum) +
+    " · " +
+    dauerAlsText(video.sekunden);
+
+  const knopf = document.createElement("button");
+  knopf.className = "gesehen-knopf";
+  knopf.textContent = "✓ Gesehen";
+  knopf.title = "Als gesehen markieren";
+  knopf.addEventListener("click", (ereignis) => {
+    ereignis.stopPropagation(); // sonst würde der Klick auch das Video starten
+    videoErledigt(video);
+  });
+
+  unten.append(meta, knopf);
+  info.append(titel, unten);
+  karte.append(bild, info);
+  karte.addEventListener("click", () => videoAbspielen(video));
+  return karte;
+}
+
+// Baut eine Liste (Raster) aus mehreren Karten
+function listeBauen(videos) {
+  const liste = document.createElement("ul");
+  liste.className = "video-liste";
   for (const video of videos) {
-    const karte = document.createElement("li");
-    karte.className = "video-karte";
+    liste.append(karteBauen(video));
+  }
+  return liste;
+}
 
-    const bild = document.createElement("img");
-    bild.className = "vorschaubild";
-    bild.src = video.bild;
-    bild.alt = "";
-    bild.loading = "lazy";
+// Baut einen auf- und zuklappbaren Abschnitt für ein Thema
+function abschnittBauen(thema, videos) {
+  const abschnitt = document.createElement("details");
+  abschnitt.className = "thema-abschnitt";
+  abschnitt.open = !zugeklappteThemen.includes(thema);
 
-    const info = document.createElement("div");
-    info.className = "video-info";
-
-    const titel = document.createElement("h3");
-    titel.className = "video-titel";
-    titel.textContent = video.titel;
-
-    const unten = document.createElement("div");
-    unten.className = "video-unten";
-
-    const meta = document.createElement("p");
-    meta.className = "video-meta";
-    meta.textContent =
-      video.kanal +
-      " · " +
-      wieLangeHer(video.datum) +
-      " · " +
-      dauerAlsText(video.sekunden);
-
-    const knopf = document.createElement("button");
-    knopf.className = "gesehen-knopf";
-    knopf.textContent = "✓ Gesehen";
-    knopf.title = "Als gesehen markieren";
-    knopf.addEventListener("click", (ereignis) => {
-      ereignis.stopPropagation(); // sonst würde der Klick auch das Video starten
-      videoErledigt(video);
-    });
-
-    unten.append(meta, knopf);
-    info.append(titel, unten);
-    karte.append(bild, info);
-    karte.addEventListener("click", () => videoAbspielen(video));
-    liste.append(karte);
-
-    video.karte = karte; // merken, damit wir die Karte später entfernen können
+  let sekunden = 0;
+  for (const video of videos) {
+    sekunden = sekunden + video.sekunden;
   }
 
+  let anzahlText = videos.length + " Videos";
+  if (videos.length === 1) {
+    anzahlText = "1 Video";
+  }
+
+  const kopf = document.createElement("summary");
+  kopf.textContent =
+    thema + " · " + anzahlText + " · " + gesamtdauerAlsText(sekunden);
+
+  // Merken, welche Abschnitte zugeklappt sind
+  abschnitt.addEventListener("toggle", () => {
+    if (abschnitt.open) {
+      zugeklappteThemen = zugeklappteThemen.filter((t) => t !== thema);
+    } else if (!zugeklappteThemen.includes(thema)) {
+      zugeklappteThemen.push(thema);
+    }
+    localStorage.setItem("zugeklappt", JSON.stringify(zugeklappteThemen));
+  });
+
+  abschnitt.append(kopf, listeBauen(videos));
+  return abschnitt;
+}
+
+// Zeigt die Videos an: als eine Liste oder nach Themen sortiert
+function videosAnzeigen(videos) {
+  angezeigteVideos = videos;
+
+  const bereich = document.getElementById("video-bereich");
+  bereich.innerHTML = ""; // erst einmal leeren
+
+  if (ansicht === "neueste") {
+    bereich.append(listeBauen(videos));
+  } else {
+    const reihenfolge = Object.keys(THEMEN).concat(["Sonstiges"]);
+    for (const thema of reihenfolge) {
+      const videosImThema = videos.filter((video) => themaVon(video) === thema);
+      if (videosImThema.length > 0) {
+        bereich.append(abschnittBauen(thema, videosImThema));
+      }
+    }
+  }
+
+  ansichtKnoepfeMarkieren();
   statusAktualisieren();
 }
 
-// Markiert ein Video als gesehen und nimmt seine Karte aus der Liste
+// Markiert ein Video als gesehen und nimmt es aus der Anzeige
 function videoErledigt(video) {
   alsGesehenMarkieren(video.id);
-  video.karte.remove();
-  statusAktualisieren();
+  gesehenAbgleichen(); // läuft im Hintergrund, falls mit Google verbunden
+  videosAnzeigen(angezeigteVideos.filter((v) => v !== video));
 }
 
 // Zeigt oben an, wie viele Videos noch übrig sind
 function statusAktualisieren() {
-  const anzahl = document.getElementById("video-liste").children.length;
+  const anzahl = angezeigteVideos.length;
   const status = document.getElementById("status");
 
   if (anzahl === 0) {
@@ -505,6 +646,27 @@ function statusAktualisieren() {
     status.textContent = anzahl + " neue Videos";
   }
 }
+
+// Hebt den Knopf der aktuellen Ansicht hervor
+function ansichtKnoepfeMarkieren() {
+  for (const knopf of document.querySelectorAll(".ansicht-knopf")) {
+    if (knopf.dataset.ansicht === ansicht) {
+      knopf.classList.add("aktiv");
+    } else {
+      knopf.classList.remove("aktiv");
+    }
+  }
+}
+
+// Ansicht-Knöpfe anklickbar machen
+for (const knopf of document.querySelectorAll(".ansicht-knopf")) {
+  knopf.addEventListener("click", () => {
+    ansicht = knopf.dataset.ansicht;
+    localStorage.setItem("ansicht", ansicht);
+    videosAnzeigen(angezeigteVideos);
+  });
+}
+ansichtKnoepfeMarkieren();
 // ===== 7. PLAYER =====
 
 let player = null; // der YouTube-Player (wird beim ersten Klick erstellt)
